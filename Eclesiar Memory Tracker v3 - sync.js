@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Eclesiar Memory Tracker v3
 // @namespace    http://tampermonkey.net/
-// @version      3.12
-// @description  Eclesiar Memory Tracker with cross-device cloud sync (Supabase). Auto-detects user ID from page, syncs local memory cache to a shared cloud DB protected by a user-chosen PIN. Supports weekly event rotation. Cloud data is append/update-only — cannot be deleted.
+// @version      3.15
+// @description  Eclesiar Memory Tracker with cross-device cloud sync (Supabase). Auto-detects user ID from page, syncs local memory cache to a shared cloud DB protected by a user-chosen PIN. Supports weekly event rotation. Cloud data is append/update-only — cannot be deleted. v3.13: highlights matchable pairs among known cards so you do not miss claiming them.
 // @author       morswin28, kmi3c
 // @match        https://eclesiar.com/*
 // @grant        unsafeWindow
@@ -549,6 +549,64 @@
             const dataIndex = parseInt(cardEl.getAttribute('data-index'));
             const savedData = cache.find(item => item.index === dataIndex);
             if (savedData) applyVisualHint(cardEl, savedData);
+        });
+        markPairs(cache);
+    }
+
+    // Highlight matchable pairs: two or more known cards currently on the board that share the same
+    // avatar_url|badge_text|quality are a claimable pair. Re-run every render (the pair only becomes
+    // available once the SECOND card is known), toggling a pulsing marker so you notice it and do not miss it.
+    function injectPairStyle() {
+        if (document.getElementById('tm-pair-style')) return;
+        const st = document.createElement('style');
+        st.id = 'tm-pair-style';
+        st.textContent =
+            '@keyframes tm-pair-pulse{0%,100%{box-shadow:0 0 0 3px rgba(255,215,0,.9),0 0 10px 3px rgba(255,215,0,.6)}50%{box-shadow:0 0 0 3px rgba(255,215,0,1),0 0 22px 7px rgba(255,215,0,.9)}}' +
+            // Glow the whole card element so it shows whichever way the card is facing (a just-flipped card
+            // still marks its face-down partner). Applied to every duplicate DOM block of the same index.
+            '.memory-card.tm-pair-card{animation:tm-pair-pulse 1.1s ease-in-out infinite;border-radius:8px;position:relative;z-index:5}' +
+            '.tm-helper-hint.tm-pair{border-style:solid!important;border-color:gold!important;border-width:3px!important}' +
+            ".tm-helper-hint.tm-pair::after{content:'\\2691 PAIR';position:absolute;bottom:4px;right:4px;font-size:9px;font-weight:bold;color:#111;background:gold;padding:1px 4px;border-radius:4px;letter-spacing:.3px}";
+        document.head.appendChild(st);
+    }
+
+    function markPairs(cache) {
+        injectPairStyle();
+        // The board renders each card as MORE THAN ONE .memory-card element (e.g. desktop + mobile blocks),
+        // so collect ALL elements per data-index. An index is CLAIMED (already matched -> not a live pair)
+        // if any of its elements carries `is-claimed`.
+        const byIdx = new Map();
+        document.querySelectorAll('.memory-card[data-index]').forEach(el => {
+            const idx = parseInt(el.getAttribute('data-index'));
+            if (isNaN(idx)) return;
+            if (!byIdx.has(idx)) byIdx.set(idx, { els: [], claimed: false });
+            const rec = byIdx.get(idx);
+            rec.els.push(el);
+            if (el.classList.contains('is-claimed')) rec.claimed = true;
+        });
+        // Group known, present, NOT-claimed cards by their pair key. Normalize the avatar URL (identical
+        // rewards can carry a different ?v=<hash>); badge_text + quality complete the pair identity.
+        const groups = new Map();
+        (cache || []).forEach(item => {
+            const rec = byIdx.get(item.index);
+            if (!rec || rec.claimed || !item.avatar_url) return;
+            const av = String(item.avatar_url).split('?')[0];
+            const key = av + '|' + (item.badge_text || '') + '|' + (item.quality != null ? item.quality : '');
+            if (!groups.has(key)) groups.set(key, new Set());
+            groups.get(key).add(item.index);
+        });
+        // Indices with >= 2 distinct still-in-play cards sharing a face = a claimable pair.
+        const paired = new Set();
+        groups.forEach(idxSet => { if (idxSet.size >= 2) idxSet.forEach(i => paired.add(i)); });
+        // Mark every DOM element of each index (so the visible block gets it): glow the card + flag the
+        // face-down hint overlay with the PAIR badge.
+        byIdx.forEach((rec, idx) => {
+            const on = paired.has(idx);
+            rec.els.forEach(el => {
+                el.classList.toggle('tm-pair-card', on);
+                const hint = el.querySelector('.card-back .tm-helper-hint');
+                if (hint) hint.classList.toggle('tm-pair', on);
+            });
         });
     }
 
