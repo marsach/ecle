@@ -5,6 +5,9 @@
 // @description  Eclesiar Memory Tracker
 // @author       morswin28
 // @match        https://eclesiar.com/*
+// @homepageURL  https://scripts.ecle.fun/
+// @downloadURL  https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-memory-tracker-v1.user.js
+// @updateURL    https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-memory-tracker-v1.user.js
 // @grant        unsafeWindow
 // @run-at       document-start
 // ==/UserScript==

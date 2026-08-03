@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eclesiar Userscripts</title>
+<meta name="description" content="Userscripty do gry Eclesiar - pamięć kart w minigrze Memory oraz pilnowanie presetów sprzętu pod teren bitwy.">
+<meta name="theme-color" content="#eef2fb">
+<style>
+  :root{
+    --bg:#eef2fb;
+    --bg-2:#f5f8fd;
+    --panel:#ffffff;
+    --line:#e2e8f0;
+    --txt:#1e293b;
+    --muted:#64748b;
+    --accent:#2563eb;
+    --accent-soft:#e8f0fe;
+    --accent-line:#bfdbfe;
+    --shadow:0 1px 2px rgba(15,23,42,.06);
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1100px 520px at 50% -220px, rgba(96,165,250,.22), transparent 70%),
+      var(--bg);
+    color:var(--txt);
+    font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px}
+  a{color:var(--accent)}
+
+  /* ---------- header ---------- */
+  header{padding:64px 0 40px;text-align:center;border-bottom:1px solid var(--line)}
+  h1{
+    margin:0 0 10px;
+    font-size:clamp(30px,6vw,46px);
+    letter-spacing:-.02em;
+    line-height:1.1;
+  }
+  h1 .accent{color:var(--accent)}
+  .tagline{margin:0 auto;max-width:600px;color:var(--muted);font-size:17px}
+
+  /* ---------- sections ---------- */
+  section{padding:52px 0;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:0}
+  h2{
+    font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);
+    margin:0 0 22px;font-weight:700;
+  }
+  h3{margin:0 0 6px;font-size:20px}
+  p{margin:0 0 14px}
+
+  /* ---------- script cards ---------- */
+  .group{margin:0 0 6px;font-size:19px}
+  .group-desc{margin:0 0 18px;color:var(--muted);font-size:15px}
+  .group-wrap + .group-wrap{margin-top:44px}
+  .cards{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:24px;display:flex;flex-direction:column;box-shadow:var(--shadow);
+  }
+  .card.recommended{border-color:var(--accent-line);box-shadow:0 0 0 3px rgba(37,99,235,.10),var(--shadow)}
+  .card-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:4px}
+  .ver{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pill{
+    align-self:flex-start;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    color:#1d4ed8;background:var(--accent-soft);border:1px solid var(--accent-line);
+    padding:3px 9px;border-radius:999px;margin-bottom:12px;
+  }
+  .card ul{margin:0 0 16px;padding-left:20px;color:var(--muted);font-size:15px}
+  .card li{margin:5px 0}
+  .card li strong{color:var(--txt);font-weight:600}
+  .author{
+    margin:0 0 20px;padding-top:14px;border-top:1px solid var(--line);
+    font-size:13px;color:var(--muted);
+  }
+  .author strong{color:var(--txt);font-weight:600}
+  .card .btns{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .btn{
+    display:inline-block;text-decoration:none;font-weight:700;font-size:13px;
+    text-transform:uppercase;letter-spacing:.05em;
+    padding:10px 16px;border-radius:6px;border:1px solid var(--accent);
+    color:var(--accent);background:transparent;transition:background .15s,color .15s;
+  }
+  .btn:hover{background:var(--accent-soft)}
+  .btn.primary{background:var(--accent);color:#ffffff;box-shadow:var(--shadow)}
+  .btn.primary:hover{background:#1d4ed8}
+  .btn.ghost{border-color:var(--line);color:var(--muted);background:var(--bg-2)}
+  .btn.ghost:hover{background:#eef2f7;color:var(--txt)}
+
+  /* ---------- steps ---------- */
+  ol.steps{list-style:none;counter-reset:s;margin:0;padding:0}
+  ol.steps > li{
+    counter-increment:s;position:relative;padding-left:52px;margin-bottom:28px;
+  }
+  ol.steps > li::before{
+    content:counter(s);
+    position:absolute;left:0;top:-2px;
+    width:34px;height:34px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--accent-soft);border:1px solid var(--accent-line);
+    color:#1d4ed8;font-weight:700;font-size:15px;
+  }
+  ol.steps h3{font-size:17px;margin-bottom:4px}
+  ol.steps p{color:var(--muted);margin-bottom:8px}
+  ol.steps p:last-child{margin-bottom:0}
+
+  .note{
+    background:var(--accent-soft);border:1px solid var(--accent-line);border-left:3px solid var(--accent);
+    border-radius:6px;padding:14px 18px;color:#475569;font-size:15px;margin:20px 0 0;
+  }
+  .note strong{color:var(--txt)}
+
+  kbd,code{
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;
+    background:#f1f5f9;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:#334155;
+  }
+
+  /* ---------- faq ---------- */
+  details{
+    border:1px solid var(--line);border-radius:8px;background:var(--panel);
+    padding:14px 18px;margin-bottom:10px;box-shadow:var(--shadow);
+  }
+  details[open]{border-color:var(--accent-line)}
+  summary{cursor:pointer;font-weight:600;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+";color:var(--accent);font-weight:700;margin-right:10px}
+  details[open] summary::before{content:"–"}
+  details p{margin:12px 0 0;color:var(--muted);font-size:15px}
+
+  footer{padding:36px 0 56px;text-align:center;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Eclesiar <span class="accent">Userscripts</span></h1>
+    <p class="tagline">
+      Zestaw skryptów do Eclesiar. <strong>Memory Tracker</strong> zapamiętuje odkryte karty
+      w minigrze Memory, a <strong>Terrain Preset Reminder</strong> pilnuje, żebyś nie ruszył
+      do bitwy z presetem sprzętu niedopasowanym do terenu.
+    </p>
+  </div>
+</header>
+
+<section id="skrypty">
+  <div class="wrap">
+    <h2>Skrypty</h2>
+
+    <div class="group-wrap">
+    <h3 class="group">Minigra Memory</h3>
+    <p class="group-desc">Pamiętają, co kryje się pod odkrytymi kartami. Wybierz jedną z dwóch wersji.</p>
+    <div class="cards">
+
+      <div class="card recommended">
+        <span class="pill">Zalecany</span>
+        <div class="card-top">
+          <h3>Memory Tracker v3 - Sync</h3>
+          <span class="ver">v3.15</span>
+        </div>
+        <p style="color:var(--muted);font-size:15px">Wszystko z v1 plus synchronizacja w chmurze i podpowiedzi par.</p>
+        <ul>
+          <li><strong>Podgląd odkrytych kart</strong> nałożony na rewersy</li>
+          <li><strong>Synchronizacja między urządzeniami</strong> (PC ↔ telefon) chroniona PIN-em</li>
+          <li><strong>Podświetlanie par</strong> - nie przegapisz gotowego zestawu</li>
+          <li><strong>Rotacja eventów</strong> - nowy event = czysta plansza</li>
+          <li>Dane w chmurze tylko dopisywane - nie da się ich skasować</li>
+        </ul>
+        <p class="author">Autorzy: <strong>morswin28</strong> &amp; <strong>kmi3c</strong></p>
+        <div class="btns">
+          <a class="btn primary" href="https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-memory-tracker-v3-sync.user.js">Zainstaluj</a>
+          <a class="btn ghost" href="https://github.com/marsach/ecle/blob/main/eclesiar-memory-tracker-v3-sync.user.js">Kod źródłowy</a>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="pill" style="color:var(--muted);background:transparent;border-color:var(--line)">Wersja prosta</span>
+        <div class="card-top">
+          <h3>Memory Tracker v1</h3>
+          <span class="ver">v2.2</span>
+        </div>
+        <p style="color:var(--muted);font-size:15px">Minimalna wersja lokalna - bez konta, bez chmury, bez konfiguracji.</p>
+        <ul>
+          <li><strong>Podgląd odkrytych kart</strong> nałożony na rewersy</li>
+          <li>Ramka i gwiazdki w kolorze jakości karty</li>
+          <li>Przycisk <strong>Wyczyść Pamięć</strong></li>
+          <li>Wszystko trzymane lokalnie w przeglądarce</li>
+        </ul>
+        <p class="author">Autor: <strong>morswin28</strong></p>
+        <div class="btns">
+          <a class="btn" href="https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-memory-tracker-v1.user.js">Zainstaluj</a>
+          <a class="btn ghost" href="https://github.com/marsach/ecle/blob/main/eclesiar-memory-tracker-v1.user.js">Kod źródłowy</a>
+        </div>
+      </div>
+
+    </div>
+    <p class="note">
+      <strong>Zainstaluj tylko jedną wersję Memory Trackera.</strong> Obie używają tego samego
+      magazynu danych (<code>eclesiar_memory_cache</code>) i uruchomione równocześnie będą się dublować.
+    </p>
+    </div>
+
+    <div class="group-wrap">
+    <h3 class="group">Wojna</h3>
+    <p class="group-desc">Skrypty działające na stronach bitew - niezależne od Memory Trackera.</p>
+    <div class="cards">
+
+      <div class="card">
+        <span class="pill" style="color:var(--muted);background:transparent;border-color:var(--line)">Nowość</span>
+        <div class="card-top">
+          <h3>Terrain Preset Reminder</h3>
+          <span class="ver">v1.0</span>
+        </div>
+        <p style="color:var(--muted);font-size:15px">Ostrzega, gdy aktywny preset sprzętu nie pasuje do terenu bitwy.</p>
+        <ul>
+          <li><strong>Automatyczne wykrycie terenu</strong> bitwy (równiny, góry, las, pustynia)</li>
+          <li><strong>Allow-lista presetów</strong> - sam ustalasz, które sloty pasują do którego terenu</li>
+          <li>Status <strong>[OK]</strong> / <strong>[ZŁY PRESET!]</strong> przy przycisku walki</li>
+          <li>Konfiguracja przez ikonę zębatki obok slotów presetów</li>
+          <li>Ustawienia trzymane lokalnie w przeglądarce</li>
+        </ul>
+        <p class="author">Autor: <strong>morswin28</strong></p>
+        <div class="btns">
+          <a class="btn" href="https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-terrain-preset-reminder.user.js">Zainstaluj</a>
+          <a class="btn ghost" href="https://github.com/marsach/ecle/blob/main/eclesiar-terrain-preset-reminder.user.js">Kod źródłowy</a>
+        </div>
+      </div>
+
+    </div>
+    </div>
+  </div>
+</section>
+
+<section id="instalacja">
+  <div class="wrap">
+    <h2>Instalacja</h2>
+    <ol class="steps">
+      <li>
+        <h3>Zainstaluj menedżer userscriptów</h3>
+        <p>Potrzebujesz rozszerzenia <strong>Tampermonkey</strong> (lub Violentmonkey) w przeglądarce.</p>
+        <p>
+          <a href="https://www.tampermonkey.net/">Tampermonkey ↗</a> &nbsp;·&nbsp;
+          <a href="https://violentmonkey.github.io/">Violentmonkey ↗</a>
+        </p>
+      </li>
+      <li>
+        <h3>Włącz tryb dewelopera (Chrome / Edge)</h3>
+        <p>
+          W Chrome i Edge Tampermonkey wymaga włączonego trybu dewelopera:
+          wejdź na <code>chrome://extensions</code> (lub <code>edge://extensions</code>)
+          i przesuń przełącznik <strong>Tryb dewelopera</strong>. W Firefoksie ten krok pomijasz.
+        </p>
+      </li>
+      <li>
+        <h3>Kliknij „Zainstaluj”</h3>
+        <p>
+          Wróć <a href="#skrypty">do listy skryptów</a> i kliknij przycisk instalacji.
+          Tampermonkey otworzy kartę z podglądem kodu - potwierdź przyciskiem <strong>Zainstaluj</strong>.
+        </p>
+      </li>
+      <li>
+        <h3>Otwórz Eclesiar</h3>
+        <p>
+          Wejdź na <a href="https://eclesiar.com/">eclesiar.com</a> i zaloguj się.
+          Memory Tracker poznasz po pomarańczowych przyciskach w panelu przy planszy eventu Memory,
+          a Terrain Preset Reminder - po ikonie zębatki przy slotach presetów na stronie bitwy.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="synchronizacja">
+  <div class="wrap">
+    <h2>Synchronizacja (tylko Memory v3)</h2>
+    <p style="color:var(--muted)">
+      Synchronizacja pozwala grać na komputerze i telefonie z tą samą pamięcią kart.
+      Konfigurujesz ją raz na każdym urządzeniu.
+    </p>
+    <ol class="steps" style="margin-top:26px">
+      <li>
+        <h3>Kliknij „🔗 Sync Setup”</h3>
+        <p>
+          Skrypt sam wykryje Twoje ID użytkownika ze strony (musisz być zalogowany)
+          i poprosi o <strong>PIN</strong> - od 4 do 32 znaków.
+        </p>
+      </li>
+      <li>
+        <h3>Podaj nazwę eventu</h3>
+        <p>
+          Np. <code>event-2026-01</code>. Ta sama nazwa = ta sama plansza kart.
+          Na kolejnym urządzeniu wpisz dokładnie to samo.
+        </p>
+      </li>
+      <li>
+        <h3>Powtórz na drugim urządzeniu</h3>
+        <p>
+          Ten sam PIN i ta sama nazwa eventu - dane połączą się automatycznie.
+          Przycisk <strong>🔄 Sync Now</strong> wymusza synchronizację ręcznie.
+        </p>
+      </li>
+      <li>
+        <h3>Nowy event? Kliknij „🆕 Nowy Event”</h3>
+        <p>
+          Podajesz PIN i nazwę nowego eventu. Lokalna pamięć jest czyszczona i zaczynasz od zera -
+          dane starych eventów zostają w chmurze, ale nie są już pokazywane.
+        </p>
+      </li>
+    </ol>
+    <p class="note">
+      <strong>Zapamiętaj swój PIN.</strong> Nie da się go odzyskać - jest przechowywany wyłącznie
+      jako skrót SHA-256. Zgubiony PIN oznacza utratę dostępu do danych w chmurze.
+    </p>
+  </div>
+</section>
+
+<section id="presety">
+  <div class="wrap">
+    <h2>Presety pod teren (Terrain Preset Reminder)</h2>
+    <p style="color:var(--muted)">
+      Skrypt czyta z listy bitew, na jakim terenie toczy się walka, i porównuje to z Twoją własną
+      listą presetów dopuszczonych dla tego terenu. Konfigurujesz ją raz.
+    </p>
+    <ol class="steps" style="margin-top:26px">
+      <li>
+        <h3>Wejdź na stronę bitwy</h3>
+        <p>
+          Obok slotów presetów pojawi się dodatkowy kafelek z <strong>zębatką</strong>.
+          Pomarańczowy trójkąt zamiast zębatki oznacza, że nie udało się ustalić terenu - odśwież stronę.
+        </p>
+      </li>
+      <li>
+        <h3>Ustaw allow-listę</h3>
+        <p>
+          Kliknij zębatkę. Dla każdego z czterech terenów - <code>Równiny</code>, <code>Góry</code>,
+          <code>Las</code>, <code>Pustynia</code> - zaznacz sloty presetów, które są tam dopuszczalne.
+          Wielokrotny wybór: przytrzymaj <kbd>Ctrl</kbd>. Zapis jest natychmiastowy.
+        </p>
+      </li>
+      <li>
+        <h3>Sprawdzaj status przed walką</h3>
+        <p>
+          Przy przycisku walki pojawia się znacznik: <strong>[OK]</strong> - preset pasuje,
+          <strong>[ZŁY PRESET!]</strong> - aktywny slot nie jest na liście dla tego terenu,
+          <strong>[?]</strong> - dla tego terenu nie ustawiłeś jeszcze żadnego presetu.
+        </p>
+      </li>
+    </ol>
+    <p class="note">
+      <strong>Skrypt niczego nie zmienia za Ciebie.</strong> Nie przełącza presetów i nie klika
+      przycisku walki - tylko pokazuje ostrzeżenie. Zmiana presetu zawsze należy do Ciebie.
+    </p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Najczęstsze pytania</h2>
+
+    <details>
+      <summary>Kliknąłem „Zainstaluj”, a widzę tylko kod</summary>
+      <p>
+        Znaczy to, że Tampermonkey nie jest zainstalowany albo jest wyłączony.
+        Sprawdź ikonę rozszerzenia w pasku przeglądarki i wróć do
+        <a href="#instalacja">kroku 1</a>.
+      </p>
+    </details>
+
+    <details>
+      <summary>Przyciski nie pojawiają się na stronie</summary>
+      <p>
+        Odśwież stronę (<kbd>Ctrl</kbd>+<kbd>F5</kbd>). Memory Tracker wstrzykuje przyciski do panelu
+        obok planszy - na telefonie pod nagłówkiem talii - i wymaga otwartego eventu Memory.
+        Terrain Preset Reminder działa wyłącznie na adresach <code>eclesiar.com/war/…</code>,
+        więc na stronie głównej czy liście bitew go nie zobaczysz.
+        Upewnij się też, że skrypt jest włączony w panelu Tampermonkey.
+      </p>
+    </details>
+
+    <details>
+      <summary>Czy to bezpieczne dla mojego konta?</summary>
+      <p>
+        Skrypty nie wysyłają danych logowania ani nie klikają za Ciebie. Memory Tracker czyta odpowiedzi
+        gry o odkrytych kartach i rysuje podpowiedzi; wersja v3 wysyła do chmury wyłącznie listę kart
+        (indeks, obrazek, jakość) pod kluczem wyliczonym z Twojego ID i PIN-u. Terrain Preset Reminder
+        pobiera tylko publiczną listę bitew, żeby odczytać teren, a allow-listę trzyma lokalnie.
+        Cały kod jest jawny - możesz go przejrzeć przed instalacją.
+      </p>
+    </details>
+
+    <details>
+      <summary>Gdzie trzymane są dane lokalnie?</summary>
+      <p>
+        W <code>localStorage</code> przeglądarki: <code>eclesiar_memory_cache</code> (karty),
+        <code>eclesiar_memory_config</code> (ID, skrót PIN-u, event) oraz
+        <code>ec_allow_presets_cache</code> (allow-lista presetów).
+        Wyczyszczenie danych witryny kasuje wszystko - przy Memory v3 pamięć kart wróci z chmury
+        po synchronizacji, ale allow-listę presetów trzeba ustawić od nowa.
+      </p>
+    </details>
+
+    <details>
+      <summary>Czy mogę używać v1 i v3 równocześnie?</summary>
+      <p>
+        Nie. Oba zapisują do tego samego klucza i dublują podpowiedzi na planszy.
+        Wyłącz jeden z nich w panelu Tampermonkey.
+      </p>
+    </details>
+
+    <details>
+      <summary>Czy Terrain Preset Reminder gryzie się z Memory Trackerem?</summary>
+      <p>
+        Nie. To osobne skrypty, działają na innych podstronach i używają innych kluczy w pamięci
+        przeglądarki. Możesz mieć zainstalowany Terrain Preset Reminder razem z dowolną wersją
+        Memory Trackera.
+      </p>
+    </details>
+
+    <details>
+      <summary>Widzę „[Błąd terenu]” albo pomarańczowy trójkąt</summary>
+      <p>
+        Skrypt nie zdołał dopasować tej bitwy do listy na <code>eclesiar.com/battles</code> -
+        np. bitwa właśnie się zakończyła albo strona nie odpowiedziała. Odśwież stronę bitwy;
+        wynik jest cache'owany na minutę, więc czasem trzeba chwilę odczekać.
+      </p>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Autorzy: <strong>morswin28</strong>, <strong>kmi3c</strong> ·
+      <a href="https://github.com/marsach/ecle">Repozytorium na GitHubie</a>
+    </p>
+    <p style="font-size:13px;opacity:.7">
+      Projekt niezależny, niepowiązany z twórcami gry Eclesiar.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

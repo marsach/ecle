@@ -5,6 +5,9 @@
 // @description  Eclesiar Memory Tracker with cross-device cloud sync (Supabase). Auto-detects user ID from page, syncs local memory cache to a shared cloud DB protected by a user-chosen PIN. Supports weekly event rotation. Cloud data is append/update-only — cannot be deleted. v3.13: highlights matchable pairs among known cards so you do not miss claiming them.
 // @author       morswin28, kmi3c
 // @match        https://eclesiar.com/*
+// @homepageURL  https://scripts.ecle.fun/
+// @downloadURL  https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-memory-tracker-v3-sync.user.js
+// @updateURL    https://raw.githubusercontent.com/marsach/ecle/main/eclesiar-memory-tracker-v3-sync.user.js
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @connect      gubzrhwnfoispspollhp.supabase.co
