@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Eclesiar Memory Tracker v3
 // @namespace    http://tampermonkey.net/
-// @version      3.15
-// @description  Eclesiar Memory Tracker with cross-device cloud sync (Supabase). Auto-detects user ID from page, syncs local memory cache to a shared cloud DB protected by a user-chosen PIN. Supports weekly event rotation. Cloud data is append/update-only — cannot be deleted. v3.13: highlights matchable pairs among known cards so you do not miss claiming them.
+// @version      3.17
+// @description  Eclesiar Memory Tracker with cross-device cloud sync (Supabase). Auto-detects user ID from page, syncs local memory cache to a shared cloud DB protected by a user-chosen PIN. Supports weekly event rotation. Cloud data is append/update-only — cannot be deleted. v3.13: highlights matchable pairs among known cards so you do not miss claiming them. v3.16: Panic Mode button wipes all local cache + config so you can start over after forgetting your PIN/event. v3.17: "Sync Setup" and "Nowy Event" merged into one "Sync" button — the cache wipe now triggers on an actual event-name change, so old cards can no longer leak into a new event's cloud row.
 // @author       morswin28, kmi3c
 // @match        https://eclesiar.com/*
 // @homepageURL  https://scripts.ecle.fun/
@@ -286,12 +286,18 @@
         return btn;
     }
 
-    async function promptSetup() {
-        const userID = autoDetectUserID();
+    // Single entry point for: first-time setup, adding another device, and rotating to a new event.
+    // Which of the three it is gets DERIVED from the answers (is there a config? did the event name
+    // change?), not from which button was clicked — so the cache wipe can never be skipped by
+    // picking the "wrong" button.
+    async function promptSync() {
+        const cfg = getConfig();
+        const userID = (cfg && cfg.userID) || autoDetectUserID();
         if (!userID) {
             alert('Nie udało się wykryć user ID ze strony. Upewnij się że jesteś zalogowany i spróbuj ponownie.');
             return;
         }
+
         const pin = window.prompt(
             `Wykryto user ID: ${userID}\n\n` +
             `Podaj PIN synchronizacji (4-32 znaki — TAKI SAM na wszystkich urządzeniach, nie da się odzyskać):`,
@@ -302,70 +308,100 @@
             return;
         }
 
-        const currentCfg = getConfig();
-        const suggestedEvent = (currentCfg && currentCfg.event) || 'event-1';
+        const currentEvent = (cfg && cfg.event) || '';
         const event = window.prompt(
-            'Podaj nazwę bieżącego eventu (np. "event-2026-01").\n' +
-            'Ten sam event = te same karty. Na kolejnych urządzeniach wpisz TAK SAMO.',
-            suggestedEvent
+            'Podaj nazwę eventu (np. "event-2026-01").\n' +
+            'Ten sam event = te same karty. Na kolejnych urządzeniach wpisz TAK SAMO.\n' +
+            'Nowa nazwa = nowy event: lokalne karty zostaną wyczyszczone.',
+            currentEvent || 'event-1'
         );
         if (!event || !event.trim()) return;
         const eventClean = event.trim();
+
+        // Wipe when starting a different event, and also on a fresh install where a stale cache
+        // could otherwise leak into the new cloud row (cloud is append/update-only).
+        const isEventChange = eventClean !== currentEvent;
+        const cacheCount = getCache().length;
+        const mustWipe = isEventChange && cacheCount > 0;
+
+        if (mustWipe) {
+            const confirmed = window.confirm(
+                `Przełączam na event: "${eventClean}"` +
+                (currentEvent ? ` (z "${currentEvent}")` : '') + `\n\n` +
+                `Lokalne dane (${cacheCount} kart) zostaną wyczyszczone.\n` +
+                `Dane w chmurze pozostaną (stare eventy są zachowane, ale niedostępne z tego skryptu).\n\n` +
+                `Kontynuować?`
+            );
+            if (!confirmed) return;
+        }
 
         const pinHash = await computePinHash(userID, pin, eventClean);
         saveConfig({ userID: String(userID).trim(), pinHash, event: eventClean });
-        updateStatus('🔗 Zapisano, synchronizuję...');
+
+        if (mustWipe) {
+            localStorage.setItem(STORAGE_KEY, '[]');
+            document.querySelectorAll('.tm-helper-hint').forEach(el => el.remove());
+            document.querySelectorAll('[data-tm-rendered]').forEach(el => el.removeAttribute('data-tm-rendered'));
+            document.querySelectorAll('.tm-pair-card').forEach(el => el.classList.remove('tm-pair-card'));
+        }
+
+        updateStatus(isEventChange ? `🆕 Event: ${eventClean}` : '🔗 Zapisano, synchronizuję...');
         fullSync();
     }
 
-    async function promptNewEvent() {
+    // PANIC MODE — full local reset. Wipes cache + config from this browser so the user can start
+    // over when they have forgotten their PIN / event name. Cloud rows are NOT touched (they are
+    // append/update-only by design) — they simply become unreachable without the old PIN+event.
+    function panicReset() {
         const cfg = getConfig();
-        if (!cfg || !cfg.userID) {
-            alert('Najpierw skonfiguruj synchronizację (Sync Setup).');
-            return;
-        }
-        const pin = window.prompt(
-            'Rozpoczynasz nowy event.\n\n' +
-            'Podaj PIN synchronizacji (ten sam co przy Sync Setup):',
-            ''
-        );
-        if (!pin || pin.length < 4) {
-            alert('PIN musi mieć co najmniej 4 znaki.');
-            return;
-        }
-        const event = window.prompt(
-            'Podaj nazwę NOWEGO eventu (np. "event-2026-02"):',
-            ''
-        );
-        if (!event || !event.trim()) return;
-        const eventClean = event.trim();
-
-        if (cfg.event === eventClean) {
-            const proceed = window.confirm(
-                `Event "${eventClean}" jest już aktywny. Kontynuować mimo to?`
-            );
-            if (!proceed) return;
-        }
-
-        // Confirm — this wipes local cache
+        const cacheCount = getCache().length;
         const confirmed = window.confirm(
-            `Przełączam na event: "${eventClean}"\n\n` +
-            `Lokalne dane bieżącego eventu zostaną wyczyszczone.\n` +
-            `Dane w chmurze pozostaną (stare eventy są zachowane, ale niedostępne z tego skryptu).\n\n` +
-            `Kontynuować?`
+            '🚨 PANIC MODE — pełny reset lokalny\n\n' +
+            `Usunę z tej przeglądarki:\n` +
+            `  • cache kart (${cacheCount} zapisanych)\n` +
+            `  • konfigurację (user ID, PIN, event${cfg && cfg.event ? `: "${cfg.event}"` : ''})\n\n` +
+            'Dane w chmurze NIE zostaną usunięte, ale bez starego PIN-u i nazwy eventu\n' +
+            'nie da się do nich wrócić.\n\n' +
+            'Po resecie skonfiguruj wszystko od nowa przez "Sync".\n\n' +
+            'Na pewno kontynuować?'
         );
         if (!confirmed) return;
 
-        const pinHash = await computePinHash(cfg.userID, pin, eventClean);
-        saveConfig({ userID: cfg.userID, pinHash, event: eventClean });
+        const doubleCheck = window.prompt(
+            'Ostatnie potwierdzenie.\n\nWpisz RESET (wielkimi literami), aby wyczyścić wszystko:',
+            ''
+        );
+        if (doubleCheck !== 'RESET') {
+            updateStatus('❌ Anulowano reset');
+            return;
+        }
 
-        // Wipe local cache — new event starts fresh
-        localStorage.setItem(STORAGE_KEY, '[]');
+        // Stop any pending sync so it cannot re-save the old config after the wipe.
+        clearTimeout(syncTimeout);
+        syncTimeout = null;
+
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(CONFIG_KEY);
+            // Sweep any legacy/leftover keys this script family may have written.
+            Object.keys(localStorage)
+                .filter(k => k.indexOf('eclesiar_memory') === 0)
+                .forEach(k => localStorage.removeItem(k));
+        } catch (e) {
+            console.error('[Memory Tracker] Panic reset error', e);
+            alert('Nie udało się wyczyścić localStorage: ' + e.message);
+            return;
+        }
+
+        // Clear rendered hints + pair markers so the board looks like a fresh install.
         document.querySelectorAll('.tm-helper-hint').forEach(el => el.remove());
         document.querySelectorAll('[data-tm-rendered]').forEach(el => el.removeAttribute('data-tm-rendered'));
+        document.querySelectorAll('.tm-pair-card').forEach(el => el.classList.remove('tm-pair-card'));
+        const label = document.getElementById('tm-event-label');
+        if (label) label.innerText = '';
 
-        updateStatus(`🆕 Event: ${eventClean}`);
-        fullSync();
+        updateStatus('🧹 Reset zakończony');
+        alert('✅ Wyczyszczono wszystkie dane lokalne.\n\nKliknij "Sync", aby skonfigurować od nowa.');
     }
 
     // Helper: is this element actually visible (rendered)? Returns false for display:none.
@@ -436,13 +472,10 @@
             justifyContent: 'center'
         });
 
-        const setupBtn = styledButton('🔗 Sync Setup');
-        setupBtn.onclick = (e) => { e.preventDefault(); promptSetup(); };
+        const setupBtn = styledButton('🔗 Sync');
+        setupBtn.title = 'Konfiguracja synchronizacji: PIN + event (nowa nazwa eventu = start od zera)';
+        setupBtn.onclick = (e) => { e.preventDefault(); promptSync(); };
         wrap.appendChild(setupBtn);
-
-        const newEventBtn = styledButton('🆕 Nowy Event');
-        newEventBtn.onclick = (e) => { e.preventDefault(); promptNewEvent(); };
-        wrap.appendChild(newEventBtn);
 
         const syncBtn = styledButton('🔄 Sync Now');
         syncBtn.onclick = (e) => {
@@ -453,6 +486,14 @@
             fullSync();
         };
         wrap.appendChild(syncBtn);
+
+        // Destructive — styled red so it is not confused with the normal actions.
+        const panicBtn = styledButton('🚨 Panic Mode');
+        panicBtn.title = 'Wyczyść cache i konfigurację z tej przeglądarki (zapomniany PIN / event)';
+        panicBtn.style.color = '#E63946';
+        panicBtn.style.borderColor = '#E63946';
+        panicBtn.onclick = (e) => { e.preventDefault(); panicReset(); };
+        wrap.appendChild(panicBtn);
 
         statusEl = document.createElement('span');
         Object.assign(statusEl.style, {
@@ -488,7 +529,7 @@
         }
 
         if (!getConfig()) {
-            updateStatus('ℹ️ Kliknij "Sync Setup"');
+            updateStatus('ℹ️ Kliknij "Sync"');
         }
     }
 
